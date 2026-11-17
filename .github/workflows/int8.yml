@@ -48,15 +48,18 @@ jobs:
           sed -i 's/^ *//' fp32.sha256
           sha256sum -c fp32.sha256
 
+      - name: Métadonnées sherpa-onnx (absentes des fichiers d'origine)
+        run: python scripts/add_metadata.py fp32 fp32m
+
       - name: Conversion int8
-        run: python scripts/quantize.py fp32 int8
+        run: python scripts/quantize.py fp32m int8
 
       - name: Versets de test
         run: python scripts/fetch_test_audio.py audio
 
       - name: Comparaison fp32 / int8
         run: |
-          python scripts/evaluate.py fp32 int8 audio report.md
+          python scripts/evaluate.py fp32m int8 audio report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Empreintes du modèle int8
@@ -82,7 +85,7 @@ jobs:
         run: |
           { echo "Modèle FastConformer-Quran quantifié en int8 pour Karaböl."; echo;
             echo "Source : https://huggingface.co/$HF_REPO (commit $HF_REVISION), licence CC-BY-4.0.";
-            echo "Modification : quantification dynamique int8 (MatMul, QUInt8) avec ONNX Runtime."; echo;
+            echo "Modifications : ajout des métadonnées sherpa-onnx à l'encodeur, puis quantification dynamique int8 (QUInt8) avec ONNX Runtime."; echo;
             cat report.md; echo; echo '```'; cat int8.sha256; echo '```'; } > notes.md
           gh release create "${{ inputs.release_tag }}" --draft --title "${{ inputs.release_tag }}" --notes-file notes.md \
             int8/encoder.int8.onnx int8/decoder.int8.onnx int8/joiner.int8.onnx int8/tokens.txt

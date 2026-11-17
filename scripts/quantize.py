@@ -1,7 +1,7 @@
 """Convertit le modèle FastConformer-Quran (sherpa-onnx) en int8 (quantification dynamique des poids).
 
 Usage : python scripts/quantize.py <dossier_fp32> <dossier_int8>
-- Seules les opérations MatMul sont quantifiées (QUInt8), comme dans les scripts d'export de sherpa-onnx.
+- Quantification QUInt8 avec les opérations par défaut, exactement comme le script d'export NeMo de sherpa-onnx.
 - Les métadonnées ONNX lues par sherpa-onnx (taille de fenêtre, cache, etc.) sont recopiées et vérifiées.
 """
 import shutil
@@ -20,7 +20,7 @@ def main(src: Path, dst: Path) -> None:
     dst.mkdir(parents=True, exist_ok=True)
     for name in ("encoder", "decoder", "joiner"):
         fp32, int8 = src / f"{name}.onnx", dst / f"{name}.int8.onnx"
-        quantize_dynamic(model_input=str(fp32), model_output=str(int8), op_types_to_quantize=["MatMul"], weight_type=QuantType.QUInt8)
+        quantize_dynamic(model_input=str(fp32), model_output=str(int8), weight_type=QuantType.QUInt8)
         before, after = metadata(fp32), metadata(int8)
         if before != after:
             model = onnx.load(str(int8))
