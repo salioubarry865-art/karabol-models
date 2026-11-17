@@ -7,10 +7,15 @@ on:
         description: "Étiquette de la version (brouillon) à créer"
         required: true
         default: "fastconformer-quran-v1.1-int8-r1"
+      mode:
+        description: "offline = décodage par segments ; streaming = en flux (cache-aware)"
+        type: choice
+        options: [offline, streaming]
+        default: offline
       publish:
         description: "Créer la version en brouillon"
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
@@ -46,7 +51,7 @@ jobs:
           sha256sum model.nemo | tee -a source.txt
 
       - name: Export ONNX (script officiel sherpa-onnx)
-        run: python scripts/export_nemo.py model.nemo fp32
+        run: python scripts/export_nemo.py model.nemo fp32 ${{ inputs.mode == 'offline' && '--offline' || '' }}
 
       - name: Conversion int8
         run: python scripts/quantize.py fp32 int8
@@ -56,7 +61,7 @@ jobs:
 
       - name: Comparaison fp32 / int8
         run: |
-          python scripts/evaluate.py fp32 int8 audio report.md
+          python scripts/evaluate.py fp32 int8 audio report.md ${{ inputs.mode == 'offline' && '--offline' || '' }}
           { echo; echo "Source : \`$(head -1 source.txt)\`"; } >> report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
 
@@ -85,7 +90,8 @@ jobs:
         run: |
           { echo "Modèle FastConformer-Quran quantifié en int8 pour Karaböl."; echo;
             echo "Source : https://huggingface.co/$NEMO_REPO (commit $NEMO_SHA, fichier $NEMO_FILE), licence CC-BY-4.0.";
-            echo "Modifications : export ONNX en 3 fichiers avec le script officiel sherpa-onnx, puis quantification dynamique int8 (QUInt8) avec ONNX Runtime."; echo;
+            echo "Modifications : export ONNX en 3 fichiers (mode ${{ inputs.mode }}) avec le script officiel sherpa-onnx, puis quantification dynamique int8 (QUInt8) avec ONNX Runtime."; echo;
             cat report.md; echo; echo '```'; cat int8.sha256; echo '```'; } > notes.md
+          gh release delete "${{ inputs.release_tag }}" --yes --cleanup-tag || true
           gh release create "${{ inputs.release_tag }}" --draft --title "${{ inputs.release_tag }}" --notes-file notes.md \
             int8/encoder.int8.onnx int8/decoder.int8.onnx int8/joiner.int8.onnx int8/tokens.txt

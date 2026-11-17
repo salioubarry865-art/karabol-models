@@ -1,6 +1,9 @@
 """Exporte le point de contrôle NeMo officiel en 3 fichiers ONNX pour sherpa-onnx (transducteur en flux).
 
-Usage : python scripts/export_nemo.py <modele.nemo> <dossier_sortie>
+Usage : python scripts/export_nemo.py <modele.nemo> <dossier_sortie> [--offline]
+
+--offline : export non streaming (script officiel export-onnx-transducer-non-streaming.py), décodé
+par segments (OfflineRecognizer, type nemo_transducer). Sans l'option : export en flux (cache-aware).
 
 Reprend le script officiel de sherpa-onnx
 scripts/nemo/fast-conformer-hybrid-transducer-ctc/export-onnx-transducer.py (v1.12.35),
@@ -29,7 +32,7 @@ def add_meta_data(filename: str, meta_data: dict) -> None:
 
 
 @torch.no_grad()
-def main(nemo_path: str, out: Path) -> None:
+def main(nemo_path: str, out: Path, offline: bool) -> None:
     out.mkdir(parents=True, exist_ok=True)
     asr_model = nemo_asr.models.ASRModel.restore_from(nemo_path, map_location="cpu")
     print("classe :", type(asr_model).__name__)
@@ -44,6 +47,29 @@ def main(nemo_path: str, out: Path) -> None:
 
     asr_model.change_decoding_strategy(decoder_type="rnnt")
     asr_model.eval()
+    normalize_type = asr_model.cfg.preprocessor.normalize
+    if normalize_type == "NA":
+        normalize_type = ""
+    if offline:
+        asr_model.set_export_config({"decoder_type": "rnnt"})
+        asr_model.encoder.export("encoder.onnx")
+        asr_model.decoder.export("decoder.onnx")
+        asr_model.joint.export("joiner.onnx")
+        meta_data = {
+            "vocab_size": asr_model.decoder.vocab_size,
+            "normalize_type": normalize_type,
+            "pred_rnn_layers": asr_model.decoder.pred_rnn_layers,
+            "pred_hidden": asr_model.decoder.pred_hidden,
+            "subsampling_factor": 8,
+            "model_type": "EncDecHybridRNNTCTCBPEModel",
+            "version": "1",
+            "model_author": "NeMo (NVIDIA base model), fine-tune by Ahmed Hany",
+            "url": "https://huggingface.co/dev-ahmedhany/stt_ar_fastconformer_hybrid_large_streaming_pcd_v1.1-mirror",
+            "comment": "Only the transducer branch is exported (Karabol, sherpa-onnx non-streaming export script)",
+        }
+        add_meta_data("encoder.onnx", meta_data)
+        print("métadonnées :", meta_data)
+        return
     if asr_model.encoder.streaming_cfg is None:
         asr_model.encoder.setup_streaming_params()
     cfg = asr_model.encoder.streaming_cfg
@@ -58,10 +84,6 @@ def main(nemo_path: str, out: Path) -> None:
     asr_model.encoder.export("encoder.onnx")
     asr_model.decoder.export("decoder.onnx")
     asr_model.joint.export("joiner.onnx")
-
-    normalize_type = asr_model.cfg.preprocessor.normalize
-    if normalize_type == "NA":
-        normalize_type = ""
 
     meta_data = {
         "vocab_size": asr_model.decoder.vocab_size,
@@ -88,4 +110,4 @@ def main(nemo_path: str, out: Path) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], Path(sys.argv[2]).resolve())
+    main(sys.argv[1], Path(sys.argv[2]).resolve(), "--offline" in sys.argv[3:])
