@@ -6,6 +6,7 @@ Les fichiers audio servent uniquement au test automatique ; ils ne sont pas publ
 import json
 import subprocess
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
@@ -17,17 +18,25 @@ AYAHS = [(1, a) for a in range(1, 8)] + [(2, 2), (2, 3), (2, 4), (112, 2), (112,
 
 def get(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "karabol-models-ci"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return r.read()
+    for attempt in range(5):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.read()
+        except Exception:
+            if attempt == 4:
+                raise
+            time.sleep(5 * (attempt + 1))
+    raise AssertionError
 
 
 def main(out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     refs: dict[str, str] = {}
     texts = {}
-    for s, a in AYAHS:
-        data = json.loads(get(f"https://api.alquran.cloud/v1/ayah/{s}:{a}/quran-simple-clean"))
-        texts[(s, a)] = data["data"]["text"]
+    for s in sorted({s for s, _ in AYAHS}):
+        data = json.loads(get(f"https://api.alquran.cloud/v1/surah/{s}/quran-simple-clean"))
+        for ayah in data["data"]["ayahs"]:
+            texts[(s, ayah["numberInSurah"])] = ayah["text"]
     for i, reciter in enumerate(RECITERS, 1):
         for s, a in AYAHS:
             key = f"r{i}-{s:03d}{a:03d}"
