@@ -11,9 +11,9 @@ import onnxruntime as ort
 sess = ort.InferenceSession(sys.argv[1], providers=["CPUExecutionProvider"])
 names = [i.name for i in sess.get_inputs()]
 print("entrées :", [(i.name, i.shape) for i in sess.get_inputs()])
-ok = []
+ok, errors = [], {}
 for cache in (70, 0, 56, 64, 80, 100, 140):
-    for frames in range(9, 400):
+    for frames in list(range(9, 400)):
         feeds = {
             names[0]: np.zeros((1, 80, frames), np.float32),
             names[1]: np.array([frames], np.int64),
@@ -23,7 +23,12 @@ for cache in (70, 0, 56, 64, 80, 100, 140):
         }
         try:
             out = sess.run(None, feeds)
-        except Exception:
+        except Exception as exc:
+            msg = str(exc).split("Status Message:")[-1].strip()[:160]
+            key = (cache, msg[-40:])
+            if key not in errors:
+                errors[key] = frames
+                print(f"échec cache={cache} trames={frames} : {msg}")
             continue
         ok.append((cache, frames, [o.shape for o in out]))
         print(f"OK cache={cache} trames={frames} -> sorties {[o.shape for o in out]}")
