@@ -1,0 +1,88 @@
+name: Modèle int8 (conversion, comparaison, publication en brouillon)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Étiquette de la version (brouillon) à créer"
+        required: true
+        default: "fastconformer-quran-v1.1-int8-r1"
+
+permissions:
+  contents: write
+
+env:
+  HF_REPO: dev-ahmedhany/stt_ar_fastconformer_hybrid_large_streaming_pcd_v1.1-sherpa
+  HF_REVISION: 2efcdd746b5470480de0787ba781e5622c080fc1
+
+jobs:
+  int8:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Outils
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          # Mêmes versions que l'application : sherpa-onnx 1.12.35 et ONNX Runtime 1.24.4 (react-native-sherpa-onnx 0.4.4)
+          pip install -q onnx==1.23.2 onnxruntime==1.24.4 sherpa-onnx==1.12.35 numpy==2.5.5
+          pip freeze | grep -iE "onnx|sherpa|numpy" | tee versions.txt
+
+      - name: Télécharger le modèle d'origine (version figée) et vérifier les empreintes
+        run: |
+          mkdir -p fp32
+          for f in encoder.onnx decoder.onnx joiner.onnx tokens.txt; do
+            curl -fsSL --retry 5 -o "fp32/$f" "https://huggingface.co/$HF_REPO/resolve/$HF_REVISION/$f"
+          done
+          cat > fp32.sha256 <<'SUMS'
+          23858ea8dec981c0cc7a8286cf983fd3ca900fc2e7ca9e15d2137b2c4c771df0  fp32/encoder.onnx
+          3939240c2ae6e8eddcc63b76654e346287abcf3671722f0761275b11bd3c96ca  fp32/decoder.onnx
+          be8b0c6cea99d4b21a34d27a09033752d5207c8c2d2382067ab48e54a5f99440  fp32/joiner.onnx
+          3c5f37ddf9f876b17656c66c93f1d4efd70ca4a1170fd8b3c6376c86ea7450a5  fp32/tokens.txt
+          SUMS
+          sed -i 's/^ *//' fp32.sha256
+          sha256sum -c fp32.sha256
+
+      - name: Conversion int8
+        run: python scripts/quantize.py fp32 int8
+
+      - name: Versets de test
+        run: python scripts/fetch_test_audio.py audio
+
+      - name: Comparaison fp32 / int8
+        run: |
+          python scripts/evaluate.py fp32 int8 audio report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Empreintes du modèle int8
+        run: |
+          cd int8
+          sha256sum encoder.int8.onnx decoder.int8.onnx joiner.int8.onnx tokens.txt | tee ../int8.sha256
+          stat -c '%n %s' encoder.int8.onnx decoder.int8.onnx joiner.int8.onnx tokens.txt | tee ../int8.sizes
+          { echo; echo '## Fichiers int8'; echo; echo '```'; cat ../int8.sha256; cat ../int8.sizes; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Rapport (artefact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-int8
+          path: |
+            report.md
+            int8.sha256
+            int8.sizes
+            versions.txt
+
+      - name: Publication en brouillon (non visible tant qu'elle n'est pas validée)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo "Modèle FastConformer-Quran quantifié en int8 pour Karaböl."; echo;
+            echo "Source : https://huggingface.co/$HF_REPO (commit $HF_REVISION), licence CC-BY-4.0.";
+            echo "Modification : quantification dynamique int8 (MatMul, QUInt8) avec ONNX Runtime."; echo;
+            cat report.md; echo; echo '```'; cat int8.sha256; echo '```'; } > notes.md
+          gh release create "${{ inputs.release_tag }}" --draft --title "${{ inputs.release_tag }}" --notes-file notes.md \
+            int8/encoder.int8.onnx int8/decoder.int8.onnx int8/joiner.int8.onnx int8/tokens.txt
