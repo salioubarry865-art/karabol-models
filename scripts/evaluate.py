@@ -116,7 +116,9 @@ def main(fp32: str, int8: str, audio_dir: str, report: str) -> None:
         f"| Vitesse (temps de calcul / durée audio) | {a['rtf']} | {b['rtf']} |",
         f"| Erreurs sur les mots (WER) | {a['wer']:.1f} % | {b['wer']:.1f} % |",
         f"| Erreurs sur les lettres (CER) | {a['cer']:.1f} % | {b['cer']:.1f} % |",
-        "", "Mesures faites sur le serveur GitHub (x86, 2 fils), pas sur un téléphone : comparer les deux colonnes entre elles.", "",
+        "", "Mesures faites sur le serveur GitHub (x86, 2 fils), pas sur un téléphone : comparer les deux colonnes entre elles.",
+        "Les récitations d'everyayah.com font partie des données d'entraînement du modèle : les taux absolus sont optimistes,",
+        "seul l'écart entre fp32 et int8 est significatif.", "",
         "## Détail par verset", "", "| Verset | Référence | fp32 | int8 |", "|---|---|---|---|",
     ]
     for key, ref in refs.items():

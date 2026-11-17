@@ -3,9 +3,9 @@
 ## Modèle FastConformer-Quran (fichiers des Releases)
 
 - Modèle de base : *stt_ar_fastconformer_hybrid_large_pcd* — NVIDIA, licence CC-BY-4.0.
-- Variante « streaming » pour sherpa-onnx : Ahmed Hany (`dev-ahmedhany` sur Hugging Face), licence CC-BY-4.0,
-  dépôt `dev-ahmedhany/stt_ar_fastconformer_hybrid_large_streaming_pcd_v1.1-sherpa`, commit `2efcdd746b5470480de0787ba781e5622c080fc1`.
-- **Modification apportée par Karaböl** : ajout des métadonnées sherpa-onnx à l'encodeur (dimensions des caches, fenêtre de flux), puis quantification dynamique int8 des poids (QUInt8) avec ONNX Runtime.
+- Variante « streaming » réentraînée : Ahmed Hany (`dev-ahmedhany` sur Hugging Face), licence CC-BY-4.0,
+  point de contrôle `streaming_v11_epoch7.nemo` du dépôt `dev-ahmedhany/stt_ar_fastconformer_hybrid_large_streaming_pcd_v1.1-mirror`.
+- **Modification apportée par Karaböl** : export ONNX en 3 fichiers (encodeur, décodeur, joiner) avec le script officiel de sherpa-onnx, puis quantification dynamique int8 des poids (QUInt8) avec ONNX Runtime.
   Aucun réentraînement ; le vocabulaire (`tokens.txt`) est inchangé.
 - Licence de la version modifiée : CC-BY-4.0 — https://creativecommons.org/licenses/by/4.0/
 
