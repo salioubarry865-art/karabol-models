@@ -13,6 +13,10 @@ Modèles de reconnaissance vocale téléchargés par l'application mobile **Kara
 | Modification | Export ONNX en 3 fichiers avec le script officiel sherpa-onnx, puis quantification dynamique int8 des poids (QUInt8) avec ONNX Runtime 1.24.4 |
 | Moteur | sherpa-onnx 1.12.35 (via react-native-sherpa-onnx 0.4.4) |
 
+Le modèle est utilisé **par segments** : le détecteur de pauses Silero VAD (`silero_vad.onnx`, MIT) découpe
+la récitation à chaque pause, puis chaque segment est décodé (sherpa-onnx `OfflineRecognizer`, type `nemo_transducer`).
+Le point de contrôle n'est pas exploitable en flux (attention « regular » et convolution non causale : fenêtre de 23 s).
+
 Les fichiers sont publiés dans les **Releases** de ce dépôt, avec leurs empreintes SHA-256.
 L'application vérifie la taille et l'empreinte de chaque fichier après le téléchargement.
 
@@ -23,5 +27,6 @@ Le workflow [`int8.yml`](.github/workflows/int8.yml) (lancement manuel) :
 1. télécharge le point de contrôle NeMo d'origine et note son commit et son empreinte ;
 2. l'exporte en ONNX avec le script officiel de sherpa-onnx (`scripts/export_nemo.py`), puis convertit en int8 (`scripts/quantize.py`) ;
 3. compare l'original et l'int8 sur des versets récités (`scripts/fetch_test_audio.py`, `scripts/evaluate.py`) :
-   mémoire, temps de chargement, vitesse, taux d'erreur sur les mots et les lettres ;
+   mémoire, temps de chargement, vitesse, taux d'erreur sur les mots et les lettres, puis récitation continue
+   avec le détecteur de pauses (`scripts/evaluate_vad.py`) ;
 4. crée une Release **en brouillon** avec les fichiers int8 et le rapport, publiée seulement après validation.

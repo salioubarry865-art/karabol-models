@@ -9,6 +9,12 @@
   Aucun réentraînement ; le vocabulaire (`tokens.txt`) est inchangé.
 - Licence de la version modifiée : CC-BY-4.0 — https://creativecommons.org/licenses/by/4.0/
 
+## Détecteur de pauses (silero_vad.onnx)
+
+- Silero VAD — https://github.com/snakers4/silero-vad — licence MIT, © Silero Team.
+- Copie non modifiée du fichier distribué par sherpa-onnx
+  (https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx).
+
 ## Scripts de ce dépôt
 
 Les scripts de conversion et de test sont fournis par Karaböl sous licence MIT.

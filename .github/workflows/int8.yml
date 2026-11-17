@@ -21,6 +21,7 @@ permissions:
   contents: write
 
 env:
+  VAD_URL: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx
   NEMO_REPO: dev-ahmedhany/stt_ar_fastconformer_hybrid_large_streaming_pcd_v1.1-mirror
   NEMO_FILE: streaming_v11_epoch7.nemo
 
@@ -65,11 +66,21 @@ jobs:
           { echo; echo "Source : \`$(head -1 source.txt)\`"; } >> report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Détecteur de pauses (Silero VAD) et récitation continue
+        if: ${{ inputs.mode == 'offline' }}
+        run: |
+          curl -fsSL --retry 5 -o int8/silero_vad.onnx "$VAD_URL"
+          python scripts/evaluate_vad.py int8 int8/silero_vad.onnx audio report-vad.md
+          cat report-vad.md >> report.md
+          { echo; cat report-vad.md; } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Empreintes du modèle int8
         run: |
           cd int8
-          sha256sum encoder.int8.onnx decoder.int8.onnx joiner.int8.onnx tokens.txt | tee ../int8.sha256
-          stat -c '%n %s' encoder.int8.onnx decoder.int8.onnx joiner.int8.onnx tokens.txt | tee ../int8.sizes
+          FILES="encoder.int8.onnx decoder.int8.onnx joiner.int8.onnx tokens.txt $(ls silero_vad.onnx 2>/dev/null)"
+          echo "FILES=$FILES" >> "$GITHUB_ENV"
+          sha256sum $FILES | tee ../int8.sha256
+          stat -c '%n %s' $FILES | tee ../int8.sizes
           { echo; echo '## Fichiers int8'; echo; echo '```'; cat ../int8.sha256; cat ../int8.sizes; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rapport (artefact)
@@ -90,8 +101,9 @@ jobs:
         run: |
           { echo "Modèle FastConformer-Quran quantifié en int8 pour Karaböl."; echo;
             echo "Source : https://huggingface.co/$NEMO_REPO (commit $NEMO_SHA, fichier $NEMO_FILE), licence CC-BY-4.0.";
+            echo "Détecteur de pauses : silero_vad.onnx (Silero, licence MIT), copie de $VAD_URL.";
             echo "Modifications : export ONNX en 3 fichiers (mode ${{ inputs.mode }}) avec le script officiel sherpa-onnx, puis quantification dynamique int8 (QUInt8) avec ONNX Runtime."; echo;
             cat report.md; echo; echo '```'; cat int8.sha256; echo '```'; } > notes.md
           gh release delete "${{ inputs.release_tag }}" --yes --cleanup-tag || true
           gh release create "${{ inputs.release_tag }}" --draft --title "${{ inputs.release_tag }}" --notes-file notes.md \
-            int8/encoder.int8.onnx int8/decoder.int8.onnx int8/joiner.int8.onnx int8/tokens.txt
+            $(for f in $FILES; do echo "int8/$f"; done)
